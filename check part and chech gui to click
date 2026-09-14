@@ -1,5 +1,5 @@
 --[[
-    Advanced Inspector Tool (Part & GUI) - Mobile & PC Support
+    Advanced Inspector Tool (Full Mobile UI & Part Capture)
     Tác giả tối ưu cho Ronaldo
 ]]--
 
@@ -11,7 +11,6 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- Các biến lưu dữ liệu hiện tại
 local currentName = ""
 local currentParent = ""
 local currentPath = ""
@@ -23,10 +22,10 @@ local currentType = ""
 local highlight = Instance.new("Highlight")
 highlight.Name = "DetectorHighlight"
 highlight.FillColor = Color3.fromRGB(255, 255, 0)
-local successHL, errHL = pcall(function() highlight.Parent = CoreGui end)
-if not successHL then highlight.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+pcall(function() highlight.Parent = CoreGui end)
+if not highlight.Parent then highlight.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
--- 2. Tạo Khung viền (Frame) để hiển thị khi chọn GUI 2D
+-- 2. Tạo khung viền bao quanh GUI 2D khi chọn
 local uiBox = Instance.new("Frame")
 uiBox.Name = "UIDetectorBox"
 uiBox.BackgroundTransparency = 0.8
@@ -34,17 +33,17 @@ uiBox.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
 uiBox.BorderSizePixel = 2
 uiBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
 uiBox.Visible = false
-local successUB, errUB = pcall(function() uiBox.Parent = CoreGui end)
-if not successUB then uiBox.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+pcall(function() uiBox.Parent = CoreGui end)
+if not uiBox.Parent then uiBox.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 -- 3. Tạo GUI Chính điều khiển
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AdvancedInspectorGUI"
 screenGui.ResetOnSpawn = false
-local successSG, errSG = pcall(function() screenGui.Parent = CoreGui end)
-if not successSG then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+pcall(function() screenGui.Parent = CoreGui end)
+if not screenGui.Parent then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
--- Khung nền GUI
+-- Khung nền GUI điều khiển
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 440, 0, 230)
 mainFrame.Position = UDim2.new(0.5, -220, 0.05, 0)
@@ -57,7 +56,6 @@ local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 8)
 mainCorner.Parent = mainFrame
 
--- Tiêu đề
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -70, 0, 25)
 titleLabel.Position = UDim2.new(0, 10, 0, 5)
@@ -66,10 +64,9 @@ titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 titleLabel.TextSize = 15
 titleLabel.Font = Enum.Font.SourceSansBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Text = "INSPECTOR: PART & GUI (MOBILE/PC)"
+titleLabel.Text = "INSPECTOR: FULL UI & PART CAPTURE"
 titleLabel.Parent = mainFrame
 
--- Nút Thu Gọn (-)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Size = UDim2.new(0, 25, 0, 25)
 toggleButton.Position = UDim2.new(1, -58, 0, 5)
@@ -84,7 +81,6 @@ local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(0, 6)
 toggleCorner.Parent = toggleButton
 
--- Nút Đóng (X)
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 25, 0, 25)
 closeButton.Position = UDim2.new(1, -30, 0, 5)
@@ -99,7 +95,6 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 6)
 closeCorner.Parent = closeButton
 
--- Sự kiện ẩn/hiện bảng điều khiển
 local isExpanded = true
 toggleButton.MouseButton1Click:Connect(function()
     isExpanded = not isExpanded
@@ -118,7 +113,6 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- Hiển thị thông tin
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 130)
 statusLabel.Position = UDim2.new(0, 10, 0, 32)
@@ -129,10 +123,9 @@ statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.TextWrapped = true
 statusLabel.TextYAlignment = Enum.TextYAlignment.Top
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Text = "Chạm/Click vào Part hoặc GUI trên màn hình để xem thông tin..."
+statusLabel.Text = "Chạm vào bất kỳ nút, khung GUI hoặc Part nào trên màn hình..."
 statusLabel.Parent = mainFrame
 
--- Hàm tạo Nút Copy
 local function createCopyButton(text, pos, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 80, 0, 26)
@@ -175,33 +168,47 @@ btnPath.MouseButton1Click:Connect(function() handleCopy(currentPath, btnPath, "C
 btnPos.MouseButton1Click:Connect(function() handleCopy(currentPosStr, btnPos, "Copy Pos", Color3.fromRGB(220, 100, 0)) end)
 btnSize.MouseButton1Click:Connect(function() handleCopy(currentSizeStr, btnSize, "Copy Size", Color3.fromRGB(180, 40, 80)) end)
 
--- 4. Xử lý logic Chạm/Click (Hỗ trợ Mobile & PC)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+-- Hàm quét và bắt mọi đối tượng GUI xuất hiện tại vị trí chạm
+UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         local mousePos = UserInputService:GetMouseLocation()
         
-        -- Tránh bấm nhầm vào khung giao diện của chính tool này
-        local guiObjects = LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
-        local targetGUI = nil
+        -- Lấy tất cả các GUI tại tọa độ ngón tay chạm vào
+        local objectsAtPos = {}
+        pcall(function()
+            objectsAtPos = LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+        end)
         
-        for _, gui in ipairs(guiObjects) do
-            if not gui:IsDescendantOf(screenGui) then
+        local targetGUI = nil
+        for _, gui in ipairs(objectsAtPos) do
+            -- Bỏ qua GUI của chính tool này để không tự bắt nhầm
+            if not gui:IsDescendantOf(screenGui) and gui.Visible then
                 targetGUI = gui
                 break
             end
         end
         
+        -- Nếu không tìm thấy qua PlayerGui, thử quét rộng sang CoreGui hoặc dùng hàm tìm kiếm thông thường
+        if not targetGUI then
+            pcall(function()
+                local coreObjects = CoreGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+                for _, gui in ipairs(coreObjects) do
+                    if not gui:IsDescendantOf(screenGui) and gui.Visible then
+                        targetGUI = gui
+                        break
+                    end
+                end
+            end)
+        end
+        
         if targetGUI then
-            -- Nếu chạm trúng một GUI Object
+            -- Nếu tìm thấy GUI / Button bất kỳ
             highlight.Adornee = nil
             uiBox.Visible = true
-            uiBox.AbsolutePosition = targetGUI.AbsolutePosition
-            uiBox.AbsoluteSize = targetGUI.AbsoluteSize
-            -- Hoặc cập nhật vị trí khung viền theo chuẩn Frame Property
             uiBox.Position = UDim2.new(0, targetGUI.AbsolutePosition.X, 0, targetGUI.AbsolutePosition.Y)
             uiBox.Size = UDim2.new(0, targetGUI.AbsoluteSize.X, 0, targetGUI.AbsoluteSize.Y)
             
-            currentType = "GUI Element"
+            currentType = "GUI Element (Button/Frame)"
             currentName = targetGUI.Name
             currentParent = targetGUI.Parent and targetGUI.Parent.Name or "Không có"
             currentPath = targetGUI:GetFullName()
@@ -212,26 +219,21 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             currentSizeStr = string.format("W: %.0f | H: %.0f", size.X, size.Y)
             
             statusLabel.Text = "• Loại: " .. currentType ..
-                               "\n• Tên GUI: " .. currentName ..
+                               "\n• Tên: " .. currentName ..
                                "\n• Parent: " .. currentParent ..
-                               "\n• Vị trí (AbsPos): " .. currentPosStr ..
-                               "\n• Kích thước (AbsSize): " .. currentSizeStr ..
+                               "\n• Vị trí: " .. currentPosStr ..
+                               "\n• Kích thước: " .. currentSizeStr ..
                                "\n• Path: " .. currentPath
         else
-            -- Nếu không trúng GUI, tiến hành Raycast tìm BasePart 3D trong Workspace
+            -- Nếu chạm ra ngoài không trúng GUI nào, tiến hành soi Part 3D
             uiBox.Visible = false
             local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
             local raycastParams = RaycastParams.new()
             raycastParams.FilterType = Enum.RaycastFilterType.Exclude
             local char = LocalPlayer.Character
-            if char then
-                raycastParams.FilterDescendantsInstances = {char, screenGui}
-            else
-                raycastParams.FilterDescendantsInstances = {screenGui}
-            end
+            raycastParams.FilterDescendantsInstances = char and {char, screenGui} or {screenGui}
             
             local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-            
             if result and result.Instance and result.Instance:IsA("BasePart") then
                 local targetPart = result.Instance
                 currentType = "3D Part"
@@ -247,12 +249,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 statusLabel.Text = "• Loại: " .. currentType ..
                                    "\n• Tên Part: " .. currentName ..
                                    "\n• Parent: " .. currentParent ..
-                                   "\n• Tọa độ (Position): " .. currentPosStr ..
-                                   "\n• Kích thước (Size): " .. currentSizeStr ..
+                                   "\n• Tọa độ: " .. currentPosStr ..
+                                   "\n• Kích thước: " .. currentSizeStr ..
                                    "\n• Path: " .. currentPath
                 
-                local model = targetPart:FindFirstAncestorOfClass("Model")
-                highlight.Adornee = model or targetPart
+                highlight.Adornee = targetPart:FindFirstAncestorOfClass("Model") or targetPart
             end
         end
     end
