@@ -1,0 +1,259 @@
+--[[
+    Advanced Inspector Tool (Part & GUI) - Mobile & PC Support
+    Tác giả tối ưu cho Ronaldo
+]]--
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- Các biến lưu dữ liệu hiện tại
+local currentName = ""
+local currentParent = ""
+local currentPath = ""
+local currentPosStr = ""
+local currentSizeStr = ""
+local currentType = ""
+
+-- 1. Tạo Highlight cho Part 3D
+local highlight = Instance.new("Highlight")
+highlight.Name = "DetectorHighlight"
+highlight.FillColor = Color3.fromRGB(255, 255, 0)
+local successHL, errHL = pcall(function() highlight.Parent = CoreGui end)
+if not successHL then highlight.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- 2. Tạo Khung viền (Frame) để hiển thị khi chọn GUI 2D
+local uiBox = Instance.new("Frame")
+uiBox.Name = "UIDetectorBox"
+uiBox.BackgroundTransparency = 0.8
+uiBox.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+uiBox.BorderSizePixel = 2
+uiBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+uiBox.Visible = false
+local successUB, errUB = pcall(function() uiBox.Parent = CoreGui end)
+if not successUB then uiBox.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- 3. Tạo GUI Chính điều khiển
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdvancedInspectorGUI"
+screenGui.ResetOnSpawn = false
+local successSG, errSG = pcall(function() screenGui.Parent = CoreGui end)
+if not successSG then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- Khung nền GUI
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 440, 0, 230)
+mainFrame.Position = UDim2.new(0.5, -220, 0.05, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 8)
+mainCorner.Parent = mainFrame
+
+-- Tiêu đề
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -70, 0, 25)
+titleLabel.Position = UDim2.new(0, 10, 0, 5)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Text = "INSPECTOR: PART & GUI (MOBILE/PC)"
+titleLabel.Parent = mainFrame
+
+-- Nút Thu Gọn (-)
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 25, 0, 25)
+toggleButton.Position = UDim2.new(1, -58, 0, 5)
+toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 16
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.Text = "-"
+toggleButton.Parent = mainFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggleCorner.Parent = toggleButton
+
+-- Nút Đóng (X)
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 25, 0, 25)
+closeButton.Position = UDim2.new(1, -30, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Text = "X"
+closeButton.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+-- Sự kiện ẩn/hiện bảng điều khiển
+local isExpanded = true
+toggleButton.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded
+    if isExpanded then
+        mainFrame:TweenSize(UDim2.new(0, 440, 0, 230), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+        toggleButton.Text = "-"
+    else
+        mainFrame:TweenSize(UDim2.new(0, 440, 0, 32), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+        toggleButton.Text = "+"
+    end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    highlight:Destroy()
+    uiBox:Destroy()
+    screenGui:Destroy()
+end)
+
+-- Hiển thị thông tin
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 130)
+statusLabel.Position = UDim2.new(0, 10, 0, 32)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.TextWrapped = true
+statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Text = "Chạm/Click vào Part hoặc GUI trên màn hình để xem thông tin..."
+statusLabel.Parent = mainFrame
+
+-- Hàm tạo Nút Copy
+local function createCopyButton(text, pos, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 80, 0, 26)
+    btn.Position = pos
+    btn.BackgroundColor3 = color
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Text = text
+    btn.Parent = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = btn
+    return btn
+end
+
+local btnName = createCopyButton("Copy Name", UDim2.new(0, 8, 1, -32), Color3.fromRGB(0, 120, 215))
+local btnParent = createCopyButton("Copy Parent", UDim2.new(0, 93, 1, -32), Color3.fromRGB(100, 50, 200))
+local btnPath = createCopyButton("Copy Path", UDim2.new(0, 178, 1, -32), Color3.fromRGB(40, 167, 69))
+local btnPos = createCopyButton("Copy Pos", UDim2.new(0, 263, 1, -32), Color3.fromRGB(220, 100, 0))
+local btnSize = createCopyButton("Copy Size", UDim2.new(0, 348, 1, -32), Color3.fromRGB(180, 40, 80))
+
+local function handleCopy(textToCopy, button, defaultText, defaultColor)
+    if textToCopy ~= "" and setclipboard then
+        setclipboard(textToCopy)
+        button.Text = "Đã Copy!"
+        button.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+        button.TextColor3 = Color3.fromRGB(0, 0, 0)
+        task.wait(1.2)
+        button.Text = defaultText
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.BackgroundColor3 = defaultColor
+    end
+end
+
+btnName.MouseButton1Click:Connect(function() handleCopy(currentName, btnName, "Copy Name", Color3.fromRGB(0, 120, 215)) end)
+btnParent.MouseButton1Click:Connect(function() handleCopy(currentParent, btnParent, "Copy Parent", Color3.fromRGB(100, 50, 200)) end)
+btnPath.MouseButton1Click:Connect(function() handleCopy(currentPath, btnPath, "Copy Path", Color3.fromRGB(40, 167, 69)) end)
+btnPos.MouseButton1Click:Connect(function() handleCopy(currentPosStr, btnPos, "Copy Pos", Color3.fromRGB(220, 100, 0)) end)
+btnSize.MouseButton1Click:Connect(function() handleCopy(currentSizeStr, btnSize, "Copy Size", Color3.fromRGB(180, 40, 80)) end)
+
+-- 4. Xử lý logic Chạm/Click (Hỗ trợ Mobile & PC)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local mousePos = UserInputService:GetMouseLocation()
+        
+        -- Tránh bấm nhầm vào khung giao diện của chính tool này
+        local guiObjects = LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+        local targetGUI = nil
+        
+        for _, gui in ipairs(guiObjects) do
+            if not gui:IsDescendantOf(screenGui) then
+                targetGUI = gui
+                break
+            end
+        end
+        
+        if targetGUI then
+            -- Nếu chạm trúng một GUI Object
+            highlight.Adornee = nil
+            uiBox.Visible = true
+            uiBox.AbsolutePosition = targetGUI.AbsolutePosition
+            uiBox.AbsoluteSize = targetGUI.AbsoluteSize
+            -- Hoặc cập nhật vị trí khung viền theo chuẩn Frame Property
+            uiBox.Position = UDim2.new(0, targetGUI.AbsolutePosition.X, 0, targetGUI.AbsolutePosition.Y)
+            uiBox.Size = UDim2.new(0, targetGUI.AbsoluteSize.X, 0, targetGUI.AbsoluteSize.Y)
+            
+            currentType = "GUI Element"
+            currentName = targetGUI.Name
+            currentParent = targetGUI.Parent and targetGUI.Parent.Name or "Không có"
+            currentPath = targetGUI:GetFullName()
+            
+            local pos = targetGUI.AbsolutePosition
+            local size = targetGUI.AbsoluteSize
+            currentPosStr = string.format("X: %.0f, Y: %.0f", pos.X, pos.Y)
+            currentSizeStr = string.format("W: %.0f | H: %.0f", size.X, size.Y)
+            
+            statusLabel.Text = "• Loại: " .. currentType ..
+                               "\n• Tên GUI: " .. currentName ..
+                               "\n• Parent: " .. currentParent ..
+                               "\n• Vị trí (AbsPos): " .. currentPosStr ..
+                               "\n• Kích thước (AbsSize): " .. currentSizeStr ..
+                               "\n• Path: " .. currentPath
+        else
+            -- Nếu không trúng GUI, tiến hành Raycast tìm BasePart 3D trong Workspace
+            uiBox.Visible = false
+            local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+            local char = LocalPlayer.Character
+            if char then
+                raycastParams.FilterDescendantsInstances = {char, screenGui}
+            else
+                raycastParams.FilterDescendantsInstances = {screenGui}
+            end
+            
+            local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+            
+            if result and result.Instance and result.Instance:IsA("BasePart") then
+                local targetPart = result.Instance
+                currentType = "3D Part"
+                currentName = targetPart.Name
+                currentParent = targetPart.Parent and targetPart.Parent.Name or "Không có"
+                currentPath = targetPart:GetFullName()
+                
+                local pos = targetPart.Position
+                local size = targetPart.Size
+                currentPosStr = string.format("%.2f, %.2f, %.2f", pos.X, pos.Y, pos.Z)
+                currentSizeStr = string.format("X: %.2f | Y: %.2f | Z: %.2f", size.X, size.Y, size.Z)
+                
+                statusLabel.Text = "• Loại: " .. currentType ..
+                                   "\n• Tên Part: " .. currentName ..
+                                   "\n• Parent: " .. currentParent ..
+                                   "\n• Tọa độ (Position): " .. currentPosStr ..
+                                   "\n• Kích thước (Size): " .. currentSizeStr ..
+                                   "\n• Path: " .. currentPath
+                
+                local model = targetPart:FindFirstAncestorOfClass("Model")
+                highlight.Adornee = model or targetPart
+            end
+        end
+    end
+end)
