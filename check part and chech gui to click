@@ -1,51 +1,58 @@
--- check name part (PC & Mobile Support + Hover GUI Effects)
-local LocalPlayer = game:GetService("Players").LocalPlayer
+-- UI Inspector for Roblox Games (PC & Mobile Support)
+local LocalPlayer = game:GetService("Players")
+local Player = LocalPlayer.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-local Camera = workspace.CurrentCamera
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- Các biến lưu dữ liệu hiện tại
-local currentPartName = ""
-local currentParentName = ""
-local currentPath = ""
-local currentPosStr = ""
-local currentSizeStr = ""
+-- Các biến lưu dữ liệu GUI hiện tại
+local currentUIName = ""
+local currentUIClass = ""
+local currentUIPath = ""
+local currentUIPosStr = ""
+local currentUISizeStr = ""
 
--- 1. Tạo Highlight cho Part
-local highlight = Instance.new("Highlight")
-highlight.Name = "PartDetectorHighlight"
-highlight.FillColor = Color3.fromRGB(255, 255, 0)
-highlight.FillTransparency = 0.5
-highlight.OutlineColor = Color3.fromRGB(0, 255, 255)
-highlight.OutlineTransparency = 0
-highlight.Parent = CoreGui
+-- 1. Tạo Khung Viền Highlight (Outline Box) để khoanh vùng UI đang rê/chọn
+local selectionBox = Instance.new("Frame")
+selectionBox.Name = "UIInspectorHighlightBox"
+selectionBox.BackgroundTransparency = 1
+selectionBox.BorderSizePixel = 0
+selectionBox.ZIndex = 99999
+selectionBox.Visible = false
+selectionBox.Parent = CoreGui
 
--- 2. Tạo GUI Chính
+local boxStroke = Instance.new("UIStroke")
+boxStroke.Color = Color3.fromRGB(0, 255, 255) -- Viền xanh ngọc nổi bật
+boxStroke.Thickness = 2.5
+boxStroke.Parent = selectionBox
+
+-- 2. Tạo GUI Điều Khiển Chính của Công Cụ
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedCheckNamePartGUI"
+screenGui.Name = "UIInspectorMainGUI"
 screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local success = pcall(function()
     screenGui.Parent = CoreGui
 end)
 if not success then
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Parent = PlayerGui
 end
 
--- Khung nền GUI
+-- Khung nền GUI điều khiển
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 440, 0, 220)
+mainFrame.Size = UDim2.new(0, 440, 0, 230)
 mainFrame.Position = UDim2.new(0.5, -220, 0.05, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 mainFrame.BackgroundTransparency = 0.15
 mainFrame.ClipsDescendants = true
+mainFrame.ZIndex = 100000
 mainFrame.Parent = screenGui
 
 local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 8)
 mainCorner.Parent = mainFrame
 
--- Viền khung GUI chính
 local mainStroke = Instance.new("UIStroke")
 mainStroke.Color = Color3.fromRGB(255, 215, 0)
 mainStroke.Thickness = 2
@@ -60,10 +67,11 @@ titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 titleLabel.TextSize = 15
 titleLabel.Font = Enum.Font.SourceSansBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Text = "CHECK NAME & SIZE PART"
+titleLabel.Text = "ROBLOX UI INSPECTOR"
+titleLabel.ZIndex = 100001
 titleLabel.Parent = mainFrame
 
--- Nút Thu Gọn / Xổ Ra (-)
+-- Nút Thu Gọn (-)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Size = UDim2.new(0, 25, 0, 25)
 toggleButton.Position = UDim2.new(1, -58, 0, 5)
@@ -72,6 +80,7 @@ toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.TextSize = 16
 toggleButton.Font = Enum.Font.SourceSansBold
 toggleButton.Text = "-"
+toggleButton.ZIndex = 100001
 toggleButton.Parent = mainFrame
 
 local toggleCorner = Instance.new("UICorner")
@@ -93,6 +102,7 @@ closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.TextSize = 14
 closeButton.Font = Enum.Font.SourceSansBold
 closeButton.Text = "X"
+closeButton.ZIndex = 100001
 closeButton.Parent = mainFrame
 
 local closeCorner = Instance.new("UICorner")
@@ -109,31 +119,26 @@ closeStroke.Parent = closeButton
 toggleButton.MouseEnter:Connect(function()
     toggleStroke.Color = Color3.fromRGB(255, 255, 0)
     toggleStroke.Transparency = 0
-    toggleStroke.Thickness = 2.5
 end)
 toggleButton.MouseLeave:Connect(function()
     toggleStroke.Color = Color3.fromRGB(255, 255, 255)
     toggleStroke.Transparency = 0.5
-    toggleStroke.Thickness = 1.5
 end)
 
 closeButton.MouseEnter:Connect(function()
     closeStroke.Color = Color3.fromRGB(255, 255, 255)
     closeStroke.Transparency = 0
-    closeStroke.Thickness = 2.5
 end)
 closeButton.MouseLeave:Connect(function()
     closeStroke.Color = Color3.fromRGB(255, 255, 255)
     closeStroke.Transparency = 0.5
-    closeStroke.Thickness = 1.5
 end)
 
--- Sự kiện đóng / mở thu gọn GUI
 local isExpanded = true
 toggleButton.MouseButton1Click:Connect(function()
     isExpanded = not isExpanded
     if isExpanded then
-        mainFrame:TweenSize(UDim2.new(0, 440, 0, 220), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+        mainFrame:TweenSize(UDim2.new(0, 440, 0, 230), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
         toggleButton.Text = "-"
     else
         mainFrame:TweenSize(UDim2.new(0, 440, 0, 32), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
@@ -142,13 +147,13 @@ toggleButton.MouseButton1Click:Connect(function()
 end)
 
 closeButton.MouseButton1Click:Connect(function()
-    highlight:Destroy()
+    selectionBox:Destroy()
     screenGui:Destroy()
 end)
 
--- Hiển thị thông tin
+-- Hiển thị thông tin UI
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 120)
+statusLabel.Size = UDim2.new(1, -20, 0, 125)
 statusLabel.Position = UDim2.new(0, 10, 0, 32)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -157,10 +162,11 @@ statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.TextWrapped = true
 statusLabel.TextYAlignment = Enum.TextYAlignment.Top
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Text = "Rê chuột hoặc chạm để xem thông tin Part..."
+statusLabel.Text = "Rê chuột hoặc chạm vào các nút/frame trong game để soi thông tin..."
+statusLabel.ZIndex = 100001
 statusLabel.Parent = mainFrame
 
--- Hàm tạo Nút Copy kèm hiệu ứng Hover nổi màu và khoanh vùng viền
+-- Hàm tạo Nút Copy
 local function createCopyButton(text, pos, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 80, 0, 26)
@@ -170,46 +176,38 @@ local function createCopyButton(text, pos, color)
     btn.TextSize = 11
     btn.Font = Enum.Font.SourceSansBold
     btn.Text = text
+    btn.ZIndex = 100001
     btn.Parent = mainFrame
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = btn
     
-    -- Viền khoanh vùng cho nút
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(255, 255, 255)
     stroke.Transparency = 0.5
     stroke.Thickness = 1.5
     stroke.Parent = btn
 
-    -- Hiệu ứng Rê chuột (Hover) nổi màu và sáng viền lên
     btn.MouseEnter:Connect(function()
-        stroke.Color = Color3.fromRGB(255, 255, 0) -- Viền đổi sang màu vàng sáng rực
+        stroke.Color = Color3.fromRGB(255, 255, 0)
         stroke.Transparency = 0
         stroke.Thickness = 2.5
-        btn.BackgroundColor3 = Color3.new(
-            math.min(color.R + 0.2, 1),
-            math.min(color.G + 0.2, 1),
-            math.min(color.B + 0.2, 1)
-        )
     end)
 
     btn.MouseLeave:Connect(function()
         stroke.Color = Color3.fromRGB(255, 255, 255)
         stroke.Transparency = 0.5
         stroke.Thickness = 1.5
-        btn.BackgroundColor3 = color -- Trở về màu gốc
     end)
 
     return btn
 end
 
--- Tạo 5 Nút Copy
 local btnName = createCopyButton("Copy Name", UDim2.new(0, 8, 1, -32), Color3.fromRGB(0, 120, 215))
-local btnParent = createCopyButton("Copy Parent", UDim2.new(0, 93, 1, -32), Color3.fromRGB(100, 50, 200))
+local btnClass = createCopyButton("Copy Class", UDim2.new(0, 93, 1, -32), Color3.fromRGB(100, 50, 200))
 local btnPath = createCopyButton("Copy Path", UDim2.new(0, 178, 1, -32), Color3.fromRGB(40, 167, 69))
-local btnPos = createCopyButton("Copy Position", UDim2.new(0, 263, 1, -32), Color3.fromRGB(220, 100, 0))
+local btnPos = createCopyButton("Copy Pos", UDim2.new(0, 263, 1, -32), Color3.fromRGB(220, 100, 0))
 local btnSize = createCopyButton("Copy Size", UDim2.new(0, 348, 1, -32), Color3.fromRGB(180, 40, 80))
 
 local function handleCopy(textToCopy, button, defaultText, defaultColor)
@@ -225,64 +223,105 @@ local function handleCopy(textToCopy, button, defaultText, defaultColor)
     end
 end
 
-btnName.MouseButton1Click:Connect(function() handleCopy(currentPartName, btnName, "Copy Name", Color3.fromRGB(0, 120, 215)) end)
-btnParent.MouseButton1Click:Connect(function() handleCopy(currentParentName, btnParent, "Copy Parent", Color3.fromRGB(100, 50, 200)) end)
-btnPath.MouseButton1Click:Connect(function() handleCopy(currentPath, btnPath, "Copy Path", Color3.fromRGB(40, 167, 69)) end)
-btnPos.MouseButton1Click:Connect(function() handleCopy(currentPosStr, btnPos, "Copy Position", Color3.fromRGB(220, 100, 0)) end)
-btnSize.MouseButton1Click:Connect(function() handleCopy(currentSizeStr, btnSize, "Copy Size", Color3.fromRGB(180, 40, 80)) end)
+btnName.MouseButton1Click:Connect(function() handleCopy(currentUIName, btnName, "Copy Name", Color3.fromRGB(0, 120, 215)) end)
+btnClass.MouseButton1Click:Connect(function() handleCopy(currentUIClass, btnClass, "Copy Class", Color3.fromRGB(100, 50, 200)) end)
+btnPath.MouseButton1Click:Connect(function() handleCopy(currentUIPath, btnPath, "Copy Path", Color3.fromRGB(40, 167, 69)) end)
+btnPos.MouseButton1Click:Connect(function() handleCopy(currentUIPosStr, btnPos, "Copy Pos", Color3.fromRGB(220, 100, 0)) end)
+btnSize.MouseButton1Click:Connect(function() handleCopy(currentUISizeStr, btnSize, "Copy Size", Color3.fromRGB(180, 40, 80)) end)
 
--- Biến lưu Part đã chọn
-local selectedTarget = nil
+-- Biến lưu UI đang được chọn cố định
+local selectedUI = nil
+local hoveredUI = nil
 
--- Hàm xử lý chọn Part chung cho cả PC và Mobile
-local function processTargetSelection(inputPosition)
-    local unitRay = Camera:ScreenPointToRay(inputPosition.X, inputPosition.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local char = LocalPlayer.Character
-    if char then
-        raycastParams.FilterDescendantsInstances = {char, screenGui}
-    else
-        raycastParams.FilterDescendantsInstances = {screenGui}
+-- Hàm lấy đường dẫn đầy đủ của UI Object
+local function getFullName(obj)
+    local path = obj.Name
+    local parent = obj.Parent
+    while parent and parent ~= game and parent ~= CoreGui and parent ~= PlayerGui do
+        path = parent.Name .. "." .. path
+        parent = parent.Parent
     end
-
-    local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, raycastParams)
-    
-    if raycastResult and raycastResult.Instance then
-        local target = raycastResult.Instance
-        if target:IsA("BasePart") then
-            selectedTarget = target
-
-            currentPartName = target.Name
-            currentParentName = target.Parent and target.Parent.Name or "Không có Parent"
-            currentPath = target:GetFullName()
-
-            local pos = target.Position
-            local size = target.Size
-
-            currentPosStr = string.format("%.2f, %.2f, %.2f", pos.X, pos.Y, pos.Z)
-            currentSizeStr = string.format("X: %.2f | Y: %.2f | Z: %.2f", size.X, size.Y, size.Z)
-
-            statusLabel.Text = "• Tên Part: " .. currentPartName ..
-                               "\n• Parent: " .. currentParentName ..
-                               "\n• Tọa độ (Position): " .. currentPosStr ..
-                               "\n• Kích thước (Size): " .. currentSizeStr ..
-                               "\n• Path: " .. currentPath
-
-            local model = target:FindFirstAncestorOfClass("Model")
-            highlight.Adornee = model or target
-        end
-    end
+    return path
 end
 
--- 3. Xử lý sự kiện click / chạm màn hình
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+-- Hàm cập nhật thông tin UI lên bảng
+local function updateUIInfo(uiObj)
+    if not uiObj or not uiObj.Parent then return end
+    selectedUI = uiObj
 
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        processTargetSelection(input.Position)
-    elseif input.UserInputType == Enum.UserInputType.Touch then
-        processTargetSelection(input.Position)
+    currentUIName = uiObj.Name
+    currentUIClass = uiObj.ClassName
+    currentUIPath = getFullName(uiObj)
+
+    local absPos = uiObj.AbsolutePosition
+    local absSize = uiObj.AbsoluteSize
+
+    currentUIPosStr = string.format("%.0f, %.0f", absPos.X, absPos.Y)
+    currentUISizeStr = string.format("%.0f x %.0f", absSize.X, absSize.Y)
+
+    statusLabel.Text = "• Tên UI: " .. currentUIName ..
+                       "\n• Loại (Class): " .. currentUIClass ..
+                       "\n• Vị trí (AbsPos): " .. currentUIPosStr ..
+                       "\n• Kích thước (AbsSize): " .. currentUISizeStr ..
+                       "\n• Path: " .. currentUIPath
+
+    -- Cập nhật khung viền bám theo UI được chọn
+    selectionBox.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+    selectionBox.Position = UDim2.new(0, absPos.X, 0, absPos.Y)
+    selectionBox.Visible = true
+end
+
+-- 3. Xử lý Rê chuột (Hover) trên PC để hiện viền theo thời gian thực
+RunService = game:GetService("RunService")
+RunService.RenderStepped:Connect(function()
+    local mousePos = UserInputService:GetMouseLocation()
+    local guiObjects = PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+    
+    -- Lọc không lấy chính các khung GUI của công cụ Inspector
+    local targetUI = nil
+    for _, obj in ipairs(guiObjects) do
+        if not obj:IsDescendantOf(screenGui) then
+            targetUI = obj
+            break
+        end
+    end
+
+    if targetUI then
+        hoveredUI = targetUI
+        local absPos = targetUI.AbsolutePosition
+        local absSize = targetUI.AbsoluteSize
+        
+        -- Nếu chưa click cố định thì viền chạy theo chuột hover (màu trắng mờ)
+        if not selectedUI or selectedUI ~= targetUI then
+            boxStroke.Color = Color3.fromRGB(255, 255, 255)
+            selectionBox.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+            selectionBox.Position = UDim2.new(0, absPos.X, 0, absPos.Y)
+            selectionBox.Visible = true
+        end
+    else
+        if not selectedUI then
+            selectionBox.Visible = false
+        end
+    end
+end)
+
+-- 4. Xử lý Click (PC) hoặc Touch (Mobile) để chọn và khóa thông tin UI
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local pos = input.Position
+        local guiObjects = PlayerGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
+        
+        local targetUI = nil
+        for _, obj in ipairs(guiObjects) do
+            if not obj:IsDescendantOf(screenGui) then
+                targetUI = obj
+                break
+            end
+        end
+
+        if targetUI then
+            boxStroke.Color = Color3.fromRGB(0, 255, 255) -- Đổi sang xanh ngọc khi đã click chọn
+            updateUIInfo(targetUI)
+        end
     end
 end)
