@@ -1,4 +1,4 @@
---// TSB Ultimate Script - PC & Mobile (Ultra Fixed & Physics Update)
+--// TSB Ultimate Script - PC & Mobile (Strict Whitelist Anti-Lag + Prediction Lock)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -22,7 +22,6 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 380, 0, 540)
--- Đã hạ thấp vị trí GUI để dễ thao tác trên điện thoại
 MainFrame.Position = UDim2.new(0.5, -190, 0.5, -180)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BackgroundTransparency = 0.2
@@ -110,7 +109,7 @@ UIListLayout.Padding = UDim.new(0, 10)
 UIListLayout.Parent = ContentContainer
 
 ---------------------------------------------------------
--- CHỌN NGƯỜI CHƠI (CÓ HIỂN THỊ BIỆT DANH / DISPLAY NAME)
+-- CHỌN NGƯỜI CHƠI
 ---------------------------------------------------------
 local selectedFlingPlayers = {}
 local selectedAttackTarget = nil
@@ -175,7 +174,7 @@ local function createPlayerDropdown(titleText, isMultiSelect, callback)
 end
 
 ---------------------------------------------------------
--- 1. HỆ THỐNG FLING (DỰ ĐOÁN & RUNG LẮC THEO HƯỚNG ĐI)
+-- 1. HỆ THỐNG FLING
 ---------------------------------------------------------
 createPlayerDropdown("Chọn người chơi Fling (Chọn nhiều):", true, function(name)
     local idx = table.find(selectedFlingPlayers, name)
@@ -269,7 +268,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ---------------------------------------------------------
--- 2. GHIM DỊCH CHUYỂN TỚI MỤC TIÊU & TỰ ĐẤM M1 + TUNG CHIÊU KHI TRONG 10 STUDS
+-- 2. DỰ ĐOÁN HƯỚNG BẮT ĐÓN HITBOX (PREDICTION LOCK) & TỰ ĐẤM
 ---------------------------------------------------------
 createPlayerDropdown("Chọn 1 mục tiêu Ghim & Đánh (Sáng Xanh):", false, function(name)
     selectedAttackTarget = name
@@ -290,9 +289,8 @@ AttackToggleBtn.MouseButton1Click:Connect(function()
     AttackToggleBtn.BackgroundColor3 = attackActive and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(50, 50, 180)
 end)
 
--- Luôn luôn Dịch chuyển/Ghim vị trí tới mục tiêu khi bật Chế độ Đánh
-RunService.Heartbeat:Connect(function()
-    if not attackActive or not selectedAttackTarget then return end
+RunService.Stepped:Connect(function()
+    if not attackActive or not selectedAttackTarget or flingMode then return end
     local p = Players:FindFirstChild(selectedAttackTarget)
     if not p or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
     local char = LocalPlayer.Character
@@ -300,11 +298,31 @@ RunService.Heartbeat:Connect(function()
     
     local hrp = char.HumanoidRootPart
     local targetHRP = p.Character.HumanoidRootPart
-    local predictedCFrame = targetHRP.CFrame + (targetHRP.AssemblyLinearVelocity * 0.15)
-    hrp.CFrame = predictedCFrame * CFrame.new(0, 0, 3.5)
+    local tVel = targetHRP.AssemblyLinearVelocity
+    
+    local horizontalVel = Vector3.new(tVel.X, 0, tVel.Z)
+    local verticalVel = tVel.Y
+    
+    -- Đã sửa đứng cách sau lưng 5 studs
+    local targetCFrame = targetHRP.CFrame * CFrame.new(0, 0, 6)
+    
+    if horizontalVel.Magnitude > 3 then
+        local leadFactor = 0.22
+        local predictedPos = targetHRP.Position + (horizontalVel * leadFactor)
+        targetCFrame = CFrame.new(predictedPos, predictedPos + horizontalVel.Unit) * CFrame.new(0, 0, 5)
+    end
+    
+    if math.abs(verticalVel) > 5 then
+        local verticalOffset = verticalVel < 0 and -2.5 or 1.5
+        local predictedY = targetHRP.Position.Y + (verticalVel * 0.18) + verticalOffset
+        targetCFrame = CFrame.new(targetCFrame.Position.X, predictedY, targetCFrame.Position.Z) * CFrame.Angles(0, targetHRP.Orientation.Y, 0)
+    end
+    
+    hrp.CFrame = targetCFrame
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
 end)
 
--- Hàm kích hoạt nút PunchButton trên điện thoại khi xuất hiện trong ReplicatedFirst hoặc PlayerGui
 local function triggerMobilePunchButton()
     local punchBtn = nil
     
@@ -330,7 +348,25 @@ local function triggerMobilePunchButton()
     end
 end
 
--- CODE TUNG CHIÊU & ĐẤM THƯỜNG (PC & MOBILE): Chỉ thực hiện khi đã áp sát trong khoảng 10 studs
+-- LUỒNG 1: ĐÁNH THƯỜNG (PC & MOBILE) - ĐÚNG 0.5 GIÂY ĐÁNH 1 LẦN
+task.spawn(function()
+    while true do
+        if attackActive then
+            pcall(function()
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                task.wait(0.01)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                
+                triggerMobilePunchButton()
+            end)
+            task.wait(0.5)
+        else
+            task.wait(0.3)
+        end
+    end
+end)
+
+-- LUỒNG 2: TUNG CHIÊU (SKILL 1-4) - ĐÚNG 1.0 GIÂY TUNG CHIÊU 1 LẦN
 task.spawn(function()
     local skills = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
     local skillIndex = 1
@@ -339,29 +375,18 @@ task.spawn(function()
             local p = Players:FindFirstChild(selectedAttackTarget)
             local char = LocalPlayer.Character
             
-            -- Kiểm tra nếu mục tiêu còn tồn tại và khoảng cách <= 10 studs thì MỚI tung chiêu/đấm
             if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
                 local targetHRP = p.Character.HumanoidRootPart
                 local hrp = char.HumanoidRootPart
                 local dist = (hrp.Position - targetHRP.Position).Magnitude
                 
-                if dist <= 10 and (p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0) then
+                if dist <= 15 and (p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0) then
                     pcall(function()
-                        -- 1. PC: ĐÁNH THƯỜNG (Click chuột trái M1)
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                        task.wait(0.03)
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-
-                        -- 2. PC: TUNG CHIÊU SKILL 1-4
                         local key = skills[skillIndex]
                         VirtualInputManager:SendKeyEvent(true, key, false, game)
                         task.wait(0.05)
                         VirtualInputManager:SendKeyEvent(false, key, false, game)
                         
-                        -- 3. Điện thoại: Kích hoạt nút PunchButton
-                        triggerMobilePunchButton()
-                        
-                        -- 4. Điện thoại: Nhấn vùng chiêu Backpack
                         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
                         if playerGui then
                             local hotbar = playerGui:FindFirstChild("Hotbar")
@@ -380,9 +405,9 @@ task.spawn(function()
                         end
                     end)
                     skillIndex = skillIndex % #skills + 1
-                    task.wait(0.5) -- Tốc độ đánh mượt mà
+                    task.wait(1.0)
                 else
-                    task.wait(0.1) -- Nếu chưa vào tầm 10 studs thì đứng đợi cho dịch chuyển áp sát
+                    task.wait(0.1)
                 end
             else
                 task.wait(0.3)
@@ -394,13 +419,13 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- 3. EXTREME ANTI-LAG (BAN NGÀY), ANTI-AFK ENGINE & SAFETY FLOOR (2000x2000 - SIÊU DÀY - KHÔNG ĐỘ TRỄ)
+-- 3. ULTRA ANTI-LAG (SIẾT CHẶT WHITELIST: CHỈ GIỮ MainPart & Workspace.Map.Walls)
 ---------------------------------------------------------
 local ExtremeBtn = Instance.new("TextButton")
 ExtremeBtn.Size = UDim2.new(1, 0, 0, 35)
 ExtremeBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 120)
 ExtremeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ExtremeBtn.Text = "Bật Extreme Anti-Lag (Sàn 2000x2000 Siêu Dày) + Anti-AFK"
+ExtremeBtn.Text = "Bật Ultra Anti-Lag (Chỉ Giữ Part Ảnh)"
 ExtremeBtn.TextSize = 13
 ExtremeBtn.Font = Enum.Font.SourceSansBold
 ExtremeBtn.Parent = ContentContainer
@@ -411,19 +436,15 @@ ExtremeBtn.MouseButton1Click:Connect(function()
     if extremeActivated then return end
     extremeActivated = true
     ExtremeBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-    ExtremeBtn.Text = "Đã Bật Anti-Lag Triệt Để & Sàn 2000x2000"
+    ExtremeBtn.Text = "Đã Tắt VFX & Xóa Bản Đồ Rác"
 
-    -- =======================================================
-    -- 1. AUTOMATIC ANTI-AFK ENGINE
-    -- =======================================================
+    -- ANTI-AFK ENGINE
     task.spawn(function()
         local VirtualUser = game:GetService("VirtualUser")
-        
         LocalPlayer.Idled:Connect(function()
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new(0, 0))
         end)
-        
         while task.wait(300) do
             pcall(function()
                 VirtualUser:CaptureController()
@@ -434,96 +455,67 @@ ExtremeBtn.MouseButton1Click:Connect(function()
         end
     end)
 
-    -- =========================================================
-    -- 2. CREATE SAFETY FLOOR (2000x2000, DÀY 50, THEO SÁT KHÔNG ĐỘ TRỄ)
-    -- =========================================================
-    local floorName = "TSB_SafetyFloor_Y100"
-    local oldFloor = workspace:FindFirstChild(floorName)
-    if oldFloor then oldFloor:Destroy() end
-
-    local safetyFloor = Instance.new("Part")
-    safetyFloor.Name = floorName
-    safetyFloor.Size = Vector3.new(2000, 50, 2000) -- Mở rộng 2000x2000, độ dày 50
-    safetyFloor.Anchored = true
-    safetyFloor.CanCollide = true
-    safetyFloor.Transparency = 0.5 
-    safetyFloor.Material = Enum.Material.SmoothPlastic
-    safetyFloor.Color = Color3.fromRGB(0, 255, 150)
-    safetyFloor.Parent = workspace
-
-    -- RenderStepped giúp sàn khóa chặt tọa độ Y=100 ngay lập tức theo người chơi mà không bị lag/trễ
-    RunService.RenderStepped:Connect(function()
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local hrpPos = char.HumanoidRootPart.Position
-            safetyFloor.CFrame = CFrame.new(hrpPos.X, 100 - 25, hrpPos.Z)
-        end
-    end)
-
-    -- =========================================================
-    -- 3. EXTREME ANTI-LAG (XÓA & KHÔNG CHO CHẠM MỌI PART MAP)
-    -- =========================================================
-    local SoundService = game:GetService("SoundService")
-    local StarterGui = game:GetService("StarterGui")
-
-    local function isPlayerCharacter(obj)
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character and obj:IsDescendantOf(player.Character) then
+    -- KIỂM TRA CHÍNH XÁC DANH SÁCH PART ĐƯỢC PHÉP GIỮ
+    local function isWhitelistedPart(obj)
+        local mapFolder = workspace:FindFirstChild("Map")
+        if mapFolder then
+            -- 1. Đúng chính xác Part MainPart trong Map
+            if obj.Name == "MainPart" and obj.Parent == mapFolder then
+                return true
+            end
+            
+            -- 2. Đúng chính xác các Part thuộc folder Workspace.Map.Walls
+            local wallsFolder = mapFolder:FindFirstChild("Walls")
+            if wallsFolder and obj:IsDescendantOf(wallsFolder) then
                 return true
             end
         end
         return false
     end
 
-    local function cleanObject(obj)
-        if obj == safetyFloor then return end
-
+    -- XỬ LÝ ẨN TẤT CẢ VÀ TẮT VA CHẠM (TRỪ NHỮNG PART WHITELIST)
+    local function processObject(obj)
+        -- Xóa VFX / Hiệu ứng
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") 
            or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Explosion") 
            or obj:IsA("Sparkles") or obj:IsA("Highlight") or obj:IsA("Decal") 
            or obj:IsA("Texture") or obj:IsA("Clouds") or obj:IsA("Sky") 
-           or obj:IsA("PostEffect") or obj:IsA("Atmosphere") or obj:IsA("Sound") then
+           or obj:IsA("PostEffect") or obj:IsA("Atmosphere") or obj:IsA("BlurEffect")
+           or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect")
+           or obj:IsA("BloomEffect") or obj:IsA("DepthOfFieldEffect") then
             
-            if not isPlayerCharacter(obj) then
-                obj:Destroy()
-            end
-            
+            pcall(function() obj:Destroy() end)
+
         elseif (obj:IsA("BasePart") or obj:IsA("MeshPart")) then
-            if not isPlayerCharacter(obj) then
-                obj.Transparency = 1
-                obj.CanCollide = false
+            -- Nếu nằm trong Whitelist -> Giữ lại, hiển thị, cho phép chạm & làm mượt khối
+            if isWhitelistedPart(obj) then
+                obj.Material = Enum.Material.SmoothPlastic
                 obj.CastShadow = false
-                obj.Size = Vector3.new(0, 0, 0)
+                obj.Transparency = 0
+                obj.CanCollide = true
+            elseif not obj:IsDescendantOf(LocalPlayer.Character) then
+                -- Tất cả các Part khác (không thuộc nhân vật) -> Ẩn hoàn toàn & tắt va chạm
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.CastShadow = false
+                if not obj.Parent:FindFirstChildOfClass("Humanoid") then
+                    obj.Transparency = 1
+                    obj.CanCollide = false
+                end
             end
         end
     end
 
-    local function nukeEverything()
-        pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false) end)
-        
-        -- ÁNH SÁNG BAN NGÀY
-        Lighting.Brightness = 2
-        Lighting.ClockTime = 14
-        Lighting.Ambient = Color3.fromRGB(150, 150, 150)
-        Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-        Lighting.GlobalShadows = false
-        
-        for _, sound in ipairs(SoundService:GetDescendants()) do 
-            if sound:IsA("Sound") and not isPlayerCharacter(sound) then 
-                sound:Destroy() 
-            end 
-        end
-
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            cleanObject(obj)
-        end
+    for _, obj in ipairs(game:GetDescendants()) do
+        processObject(obj)
     end
 
-    nukeEverything()
+    Lighting.GlobalShadows = false
+    Lighting.ClockTime = 14
+    Lighting.FogEnd = 9e9
 
-    workspace.DescendantAdded:Connect(function(obj)
+    game.DescendantAdded:Connect(function(obj)
         task.delay(0.01, function()
-            cleanObject(obj)
+            processObject(obj)
         end)
     end)
 end)
