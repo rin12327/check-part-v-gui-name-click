@@ -1,327 +1,529 @@
--- UI Inspector for Roblox Games (PC & Mobile Support)
-local LocalPlayer = game:GetService("Players")
-local Player = LocalPlayer.LocalPlayer
+--// TSB Ultimate Script - PC & Mobile (Ultra Fixed & Physics Update)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local Lighting = game:GetService("Lighting")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 
--- Các biến lưu dữ liệu GUI hiện tại
-local currentUIName = ""
-local currentUIClass = ""
-local currentUIPath = ""
-local currentUIPosStr = ""
-local currentUISizeStr = ""
+local LocalPlayer = Players.LocalPlayer
 
--- 1. Tạo Khung Viền Highlight (Outline Box) để khoanh vùng UI đang rê/chọn
-local selectionBox = Instance.new("Frame")
-selectionBox.Name = "UIInspectorHighlightBox"
-selectionBox.BackgroundTransparency = 1
-selectionBox.BorderSizePixel = 0
-selectionBox.ZIndex = 99999
-selectionBox.Visible = false
-selectionBox.Parent = CoreGui
-
-local boxStroke = Instance.new("UIStroke")
-boxStroke.Color = Color3.fromRGB(0, 255, 255) -- Viền xanh ngọc nổi bật
-boxStroke.Thickness = 2.5
-boxStroke.Parent = selectionBox
-
--- 2. Tạo GUI Điều Khiển Chính của Công Cụ
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "UIInspectorMainGUI"
-screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local success = pcall(function()
-    screenGui.Parent = CoreGui
-end)
-if not success then
-    screenGui.Parent = PlayerGui
+-- Xóa GUI cũ nếu có
+if CoreGui:FindFirstChild("TSB_MasterGUI") then
+    CoreGui.TSB_MasterGUI:Destroy()
 end
 
--- Khung nền GUI điều khiển
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 440, 0, 230)
-mainFrame.Position = UDim2.new(0.5, -220, 0.05, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-mainFrame.BackgroundTransparency = 0.15
-mainFrame.ClipsDescendants = true
-mainFrame.ZIndex = 100000
-mainFrame.Parent = screenGui
+-- Tạo ScreenGui chính
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TSB_MasterGUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 8)
-mainCorner.Parent = mainFrame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 380, 0, 540)
+-- Đã hạ thấp vị trí GUI để dễ thao tác trên điện thoại
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
 
-local mainStroke = Instance.new("UIStroke")
-mainStroke.Color = Color3.fromRGB(255, 215, 0)
-mainStroke.Thickness = 2
-mainStroke.Parent = mainFrame
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
 
--- Tiêu đề
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -70, 0, 25)
-titleLabel.Position = UDim2.new(0, 10, 0, 5)
-titleLabel.BackgroundTransparency = 1
-titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-titleLabel.TextSize = 15
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Text = "ROBLOX UI INSPECTOR"
-titleLabel.ZIndex = 100001
-titleLabel.Parent = mainFrame
+local TitleBar = Instance.new("TextLabel")
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TitleBar.BackgroundTransparency = 0.4
+TitleBar.Text = "TSB Ultimate Tool - Ronaldo Pro"
+TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleBar.TextSize = 15
+TitleBar.Font = Enum.Font.SourceSansBold
+TitleBar.Parent = MainFrame
+local TitleCorner = Instance.new("UICorner") TitleCorner.CornerRadius = UDim.new(0, 12) TitleCorner.Parent = TitleBar
 
--- Nút Thu Gọn (-)
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 25, 0, 25)
-toggleButton.Position = UDim2.new(1, -58, 0, 5)
-toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextSize = 16
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.Text = "-"
-toggleButton.ZIndex = 100001
-toggleButton.Parent = mainFrame
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+MinimizeBtn.Position = UDim2.new(1, -70, 0, 5)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextSize = 18
+MinimizeBtn.Parent = TitleBar
+local MinCorner = Instance.new("UICorner") MinCorner.CornerRadius = UDim.new(0, 6) MinCorner.Parent = MinimizeBtn
 
-local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = UDim.new(0, 6)
-toggleCorner.Parent = toggleButton
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Text = "X"
+CloseBtn.TextSize = 14
+CloseBtn.Parent = TitleBar
+local CloseCorner = Instance.new("UICorner") CloseCorner.CornerRadius = UDim.new(0, 6) CloseCorner.Parent = CloseBtn
 
-local toggleStroke = Instance.new("UIStroke")
-toggleStroke.Color = Color3.fromRGB(255, 255, 255)
-toggleStroke.Transparency = 0.5
-toggleStroke.Thickness = 1.5
-toggleStroke.Parent = toggleButton
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
--- Nút Xóa GUI (X)
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 25, 0, 25)
-closeButton.Position = UDim2.new(1, -30, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.TextSize = 14
-closeButton.Font = Enum.Font.SourceSansBold
-closeButton.Text = "X"
-closeButton.ZIndex = 100001
-closeButton.Parent = mainFrame
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = closeButton
-
-local closeStroke = Instance.new("UIStroke")
-closeStroke.Color = Color3.fromRGB(255, 255, 255)
-closeStroke.Transparency = 0.5
-closeStroke.Thickness = 1.5
-closeStroke.Parent = closeButton
-
--- Hiệu ứng Hover cho nút Toggle và Close
-toggleButton.MouseEnter:Connect(function()
-    toggleStroke.Color = Color3.fromRGB(255, 255, 0)
-    toggleStroke.Transparency = 0
-end)
-toggleButton.MouseLeave:Connect(function()
-    toggleStroke.Color = Color3.fromRGB(255, 255, 255)
-    toggleStroke.Transparency = 0.5
-end)
-
-closeButton.MouseEnter:Connect(function()
-    closeStroke.Color = Color3.fromRGB(255, 255, 255)
-    closeStroke.Transparency = 0
-end)
-closeButton.MouseLeave:Connect(function()
-    closeStroke.Color = Color3.fromRGB(255, 255, 255)
-    closeStroke.Transparency = 0.5
-end)
-
-local isExpanded = true
-toggleButton.MouseButton1Click:Connect(function()
-    isExpanded = not isExpanded
-    if isExpanded then
-        mainFrame:TweenSize(UDim2.new(0, 440, 0, 230), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
-        toggleButton.Text = "-"
-    else
-        mainFrame:TweenSize(UDim2.new(0, 440, 0, 32), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
-        toggleButton.Text = "+"
-    end
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-    selectionBox:Destroy()
-    screenGui:Destroy()
-end)
-
--- Hiển thị thông tin UI
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 125)
-statusLabel.Position = UDim2.new(0, 10, 0, 32)
-statusLabel.BackgroundTransparency = 1
-statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusLabel.TextSize = 13
-statusLabel.Font = Enum.Font.SourceSansBold
-statusLabel.TextWrapped = true
-statusLabel.TextYAlignment = Enum.TextYAlignment.Top
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Text = "Rê chuột hoặc chạm vào các nút/frame trong game để soi thông tin..."
-statusLabel.ZIndex = 100001
-statusLabel.Parent = mainFrame
-
--- Hàm tạo Nút Copy
-local function createCopyButton(text, pos, color)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 80, 0, 26)
-    btn.Position = pos
-    btn.BackgroundColor3 = color
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 11
-    btn.Font = Enum.Font.SourceSansBold
-    btn.Text = text
-    btn.ZIndex = 100001
-    btn.Parent = mainFrame
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = btn
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Transparency = 0.5
-    stroke.Thickness = 1.5
-    stroke.Parent = btn
-
-    btn.MouseEnter:Connect(function()
-        stroke.Color = Color3.fromRGB(255, 255, 0)
-        stroke.Transparency = 0
-        stroke.Thickness = 2.5
-    end)
-
-    btn.MouseLeave:Connect(function()
-        stroke.Color = Color3.fromRGB(255, 255, 255)
-        stroke.Transparency = 0.5
-        stroke.Thickness = 1.5
-    end)
-
-    return btn
-end
-
-local btnName = createCopyButton("Copy Name", UDim2.new(0, 8, 1, -32), Color3.fromRGB(0, 120, 215))
-local btnClass = createCopyButton("Copy Class", UDim2.new(0, 93, 1, -32), Color3.fromRGB(100, 50, 200))
-local btnPath = createCopyButton("Copy Path", UDim2.new(0, 178, 1, -32), Color3.fromRGB(40, 167, 69))
-local btnPos = createCopyButton("Copy Pos", UDim2.new(0, 263, 1, -32), Color3.fromRGB(220, 100, 0))
-local btnSize = createCopyButton("Copy Size", UDim2.new(0, 348, 1, -32), Color3.fromRGB(180, 40, 80))
-
-local function handleCopy(textToCopy, button, defaultText, defaultColor)
-    if textToCopy ~= "" and setclipboard then
-        setclipboard(textToCopy)
-        button.Text = "Đã Copy!"
-        button.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-        button.TextColor3 = Color3.fromRGB(0, 0, 0)
-        task.wait(1.2)
-        button.Text = defaultText
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.BackgroundColor3 = defaultColor
-    end
-end
-
-btnName.MouseButton1Click:Connect(function() handleCopy(currentUIName, btnName, "Copy Name", Color3.fromRGB(0, 120, 215)) end)
-btnClass.MouseButton1Click:Connect(function() handleCopy(currentUIClass, btnClass, "Copy Class", Color3.fromRGB(100, 50, 200)) end)
-btnPath.MouseButton1Click:Connect(function() handleCopy(currentUIPath, btnPath, "Copy Path", Color3.fromRGB(40, 167, 69)) end)
-btnPos.MouseButton1Click:Connect(function() handleCopy(currentUIPosStr, btnPos, "Copy Pos", Color3.fromRGB(220, 100, 0)) end)
-btnSize.MouseButton1Click:Connect(function() handleCopy(currentUISizeStr, btnSize, "Copy Size", Color3.fromRGB(180, 40, 80)) end)
-
--- Biến lưu UI đang được chọn cố định
-local selectedUI = nil
-local hoveredUI = nil
-
--- Hàm lấy đường dẫn đầy đủ của UI Object
-local function getFullName(obj)
-    local path = obj.Name
-    local parent = obj.Parent
-    while parent and parent ~= game and parent ~= CoreGui and parent ~= PlayerGui do
-        path = parent.Name .. "." .. path
-        parent = parent.Parent
-    end
-    return path
-end
-
--- Hàm cập nhật thông tin UI lên bảng
-local function updateUIInfo(uiObj)
-    if not uiObj or not uiObj.Parent then return end
-    selectedUI = uiObj
-
-    currentUIName = uiObj.Name
-    currentUIClass = uiObj.ClassName
-    currentUIPath = getFullName(uiObj)
-
-    local absPos = uiObj.AbsolutePosition
-    local absSize = uiObj.AbsoluteSize
-
-    currentUIPosStr = string.format("%.0f, %.0f", absPos.X, absPos.Y)
-    currentUISizeStr = string.format("%.0f x %.0f", absSize.X, absSize.Y)
-
-    statusLabel.Text = "• Tên UI: " .. currentUIName ..
-                       "\n• Loại (Class): " .. currentUIClass ..
-                       "\n• Vị trí (AbsPos): " .. currentUIPosStr ..
-                       "\n• Kích thước (AbsSize): " .. currentUISizeStr ..
-                       "\n• Path: " .. currentUIPath
-
-    -- Cập nhật khung viền bám theo UI được chọn
-    selectionBox.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
-    selectionBox.Position = UDim2.new(0, absPos.X, 0, absPos.Y)
-    selectionBox.Visible = true
-end
-
--- 3. Xử lý Rê chuột (Hover) trên PC để hiện viền theo thời gian thực
-RunService = game:GetService("RunService")
-RunService.RenderStepped:Connect(function()
-    local mousePos = UserInputService:GetMouseLocation()
-    local guiObjects = PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
-    
-    -- Lọc không lấy chính các khung GUI của công cụ Inspector
-    local targetUI = nil
-    for _, obj in ipairs(guiObjects) do
-        if not obj:IsDescendantOf(screenGui) then
-            targetUI = obj
-            break
+local minimized = false
+MinimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    for _, child in ipairs(MainFrame:GetChildren()) do
+        if child ~= TitleBar and child ~= UICorner then
+            child.Visible = not minimized
         end
     end
-
-    if targetUI then
-        hoveredUI = targetUI
-        local absPos = targetUI.AbsolutePosition
-        local absSize = targetUI.AbsoluteSize
-        
-        -- Nếu chưa click cố định thì viền chạy theo chuột hover (màu trắng mờ)
-        if not selectedUI or selectedUI ~= targetUI then
-            boxStroke.Color = Color3.fromRGB(255, 255, 255)
-            selectionBox.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
-            selectionBox.Position = UDim2.new(0, absPos.X, 0, absPos.Y)
-            selectionBox.Visible = true
-        end
-    else
-        if not selectedUI then
-            selectionBox.Visible = false
-        end
-    end
+    MainFrame.Size = minimized and UDim2.new(0, 380, 0, 40) or UDim2.new(0, 380, 0, 540)
 end)
 
--- 4. Xử lý Click (PC) hoặc Touch (Mobile) để chọn và khóa thông tin UI
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+local dragging, dragStart, startPos
+TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        local pos = input.Position
-        local guiObjects = PlayerGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
-        
-        local targetUI = nil
-        for _, obj in ipairs(guiObjects) do
-            if not obj:IsDescendantOf(screenGui) then
-                targetUI = obj
-                break
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local ContentContainer = Instance.new("ScrollingFrame")
+ContentContainer.Size = UDim2.new(1, -20, 1, -60)
+ContentContainer.Position = UDim2.new(0, 10, 0, 50)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.CanvasSize = UDim2.new(0, 0, 4, 0)
+ContentContainer.ScrollBarThickness = 6
+ContentContainer.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 10)
+UIListLayout.Parent = ContentContainer
+
+---------------------------------------------------------
+-- CHỌN NGƯỜI CHƠI (CÓ HIỂN THỊ BIỆT DANH / DISPLAY NAME)
+---------------------------------------------------------
+local selectedFlingPlayers = {}
+local selectedAttackTarget = nil
+
+local function createPlayerDropdown(titleText, isMultiSelect, callback)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 25)
+    Label.BackgroundTransparency = 1
+    Label.Text = titleText
+    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Label.TextSize = 13
+    Label.Font = Enum.Font.SourceSansBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ContentContainer
+
+    local DropContainer = Instance.new("ScrollingFrame")
+    DropContainer.Size = UDim2.new(1, 0, 0, 85)
+    DropContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    DropContainer.BackgroundTransparency = 0.5
+    DropContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    DropContainer.ScrollBarThickness = 4
+    DropContainer.Parent = ContentContainer
+
+    local DropLayout = Instance.new("UIListLayout")
+    DropLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    DropLayout.Padding = UDim.new(0, 2)
+    DropLayout.Parent = DropContainer
+
+    local function refreshList()
+        for _, child in ipairs(DropContainer:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 28)
+                btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.Text = "  " .. p.DisplayName .. " (@" .. p.Name .. ")"
+                btn.TextSize = 13
+                btn.Font = Enum.Font.SourceSans
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.Parent = DropContainer
+                local pCorner = Instance.new("UICorner") pCorner.CornerRadius = UDim.new(0, 6) pCorner.Parent = btn
+
+                if isMultiSelect and table.find(selectedFlingPlayers, p.Name) then
+                    btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+                elseif not isMultiSelect and selectedAttackTarget == p.Name then
+                    btn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                end
+                btn.MouseButton1Click:Connect(function()
+                    callback(p.Name, btn)
+                    refreshList()
+                end)
             end
         end
+        DropContainer.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 30)
+    end
+    Players.PlayerAdded:Connect(refreshList)
+    Players.PlayerRemoving:Connect(refreshList)
+    refreshList()
+end
 
-        if targetUI then
-            boxStroke.Color = Color3.fromRGB(0, 255, 255) -- Đổi sang xanh ngọc khi đã click chọn
-            updateUIInfo(targetUI)
+---------------------------------------------------------
+-- 1. HỆ THỐNG FLING (DỰ ĐOÁN & RUNG LẮC THEO HƯỚNG ĐI)
+---------------------------------------------------------
+createPlayerDropdown("Chọn người chơi Fling (Chọn nhiều):", true, function(name)
+    local idx = table.find(selectedFlingPlayers, name)
+    if idx then table.remove(selectedFlingPlayers, idx) else table.insert(selectedFlingPlayers, name) end
+end)
+
+local startPosFling = nil
+local currentFlingIndex = 1
+local flingMode = nil 
+
+local FlingOnceBtn = Instance.new("TextButton")
+FlingOnceBtn.Size = UDim2.new(1, 0, 0, 32)
+FlingOnceBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 40)
+FlingOnceBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlingOnceBtn.Text = "Bật/Tắt Fling 1 Lần"
+FlingOnceBtn.TextSize = 13
+FlingOnceBtn.Font = Enum.Font.SourceSansBold
+FlingOnceBtn.Parent = ContentContainer
+
+local FlingLoopBtn = Instance.new("TextButton")
+FlingLoopBtn.Size = UDim2.new(1, 0, 0, 32)
+FlingLoopBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 40)
+FlingLoopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlingLoopBtn.Text = "Bật/Tắt Fling Liên Tục"
+FlingLoopBtn.TextSize = 13
+FlingLoopBtn.Font = Enum.Font.SourceSansBold
+FlingLoopBtn.Parent = ContentContainer
+
+local function toggleFling(mode, btn)
+    local char = LocalPlayer.Character
+    if flingMode == mode then
+        flingMode = nil
+        btn.BackgroundColor3 = Color3.fromRGB(180, 80, 40)
+        if mode == "ONCE" and startPosFling and char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = startPosFling
+            startPosFling = nil
+        end
+    else
+        flingMode = mode
+        currentFlingIndex = 1
+        btn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+        if mode == "ONCE" and char and char:FindFirstChild("HumanoidRootPart") and not startPosFling then
+            startPosFling = char.HumanoidRootPart.CFrame
         end
     end
+end
+
+FlingOnceBtn.MouseButton1Click:Connect(function() toggleFling("ONCE", FlingOnceBtn) end)
+FlingLoopBtn.MouseButton1Click:Connect(function() toggleFling("LOOP", FlingLoopBtn) end)
+
+local flipJitter = false
+RunService.Heartbeat:Connect(function()
+    if not flingMode or #selectedFlingPlayers == 0 then return end
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+
+    if currentFlingIndex > #selectedFlingPlayers then
+        if flingMode == "ONCE" then
+            toggleFling("ONCE", FlingOnceBtn)
+            return
+        else
+            currentFlingIndex = 1
+        end
+    end
+    
+    local targetName = selectedFlingPlayers[currentFlingIndex]
+    local p = Players:FindFirstChild(targetName)
+    
+    if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+        local targetHRP = p.Character.HumanoidRootPart
+        local tVel = targetHRP.AssemblyLinearVelocity
+        
+        local moveDir = tVel.Magnitude > 2 and tVel.Unit or targetHRP.CFrame.LookVector
+        local predictedPos = targetHRP.Position + (tVel * 0.25)
+        
+        flipJitter = not flipJitter
+        local jitterOffset = flipJitter and 3 or -3 
+        
+        hrp.CFrame = CFrame.new(predictedPos + (moveDir * jitterOffset))
+        
+        hrp.AssemblyLinearVelocity = Vector3.new(90000, 90000, 90000)
+        hrp.AssemblyAngularVelocity = Vector3.new(90000, 90000, 90000)
+        
+        if tVel.Magnitude > 200 or (targetHRP.Position - hrp.Position).Magnitude > 300 or (p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health <= 0) then
+            currentFlingIndex = currentFlingIndex + 1
+        end
+    else
+        currentFlingIndex = currentFlingIndex + 1
+    end
+end)
+
+---------------------------------------------------------
+-- 2. GHIM DỊCH CHUYỂN TỚI MỤC TIÊU & TỰ ĐẤM M1 + TUNG CHIÊU KHI TRONG 10 STUDS
+---------------------------------------------------------
+createPlayerDropdown("Chọn 1 mục tiêu Ghim & Đánh (Sáng Xanh):", false, function(name)
+    selectedAttackTarget = name
+end)
+
+local AttackToggleBtn = Instance.new("TextButton")
+AttackToggleBtn.Size = UDim2.new(1, 0, 0, 32)
+AttackToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 180)
+AttackToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AttackToggleBtn.Text = "Bật Ghim Vị Trí & Tự Tung Chiêu (Hỗ Trợ PC & Điện thoại)"
+AttackToggleBtn.TextSize = 13
+AttackToggleBtn.Font = Enum.Font.SourceSansBold
+AttackToggleBtn.Parent = ContentContainer
+
+local attackActive = false
+AttackToggleBtn.MouseButton1Click:Connect(function()
+    attackActive = not attackActive
+    AttackToggleBtn.BackgroundColor3 = attackActive and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(50, 50, 180)
+end)
+
+-- Luôn luôn Dịch chuyển/Ghim vị trí tới mục tiêu khi bật Chế độ Đánh
+RunService.Heartbeat:Connect(function()
+    if not attackActive or not selectedAttackTarget then return end
+    local p = Players:FindFirstChild(selectedAttackTarget)
+    if not p or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = char.HumanoidRootPart
+    local targetHRP = p.Character.HumanoidRootPart
+    local predictedCFrame = targetHRP.CFrame + (targetHRP.AssemblyLinearVelocity * 0.15)
+    hrp.CFrame = predictedCFrame * CFrame.new(0, 0, 3.5)
+end)
+
+-- Hàm kích hoạt nút PunchButton trên điện thoại khi xuất hiện trong ReplicatedFirst hoặc PlayerGui
+local function triggerMobilePunchButton()
+    local punchBtn = nil
+    
+    if ReplicatedFirst:FindFirstChild("MobileFrame") and ReplicatedFirst.MobileFrame:FindFirstChild("PunchButton") then
+        punchBtn = ReplicatedFirst.MobileFrame.PunchButton
+    end
+    
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local found = playerGui:FindFirstChild("PunchButton", true)
+        if found then punchBtn = found end
+    end
+
+    if punchBtn and punchBtn:IsA("GuiButton") and punchBtn.Visible then
+        pcall(function()
+            for _, conn in ipairs(getconnections(punchBtn.MouseButton1Click)) do
+                conn:Fire()
+            end
+            for _, conn in ipairs(getconnections(punchBtn.Activated)) do
+                conn:Fire()
+            end
+        end)
+    end
+end
+
+-- CODE TUNG CHIÊU & ĐẤM THƯỜNG (PC & MOBILE): Chỉ thực hiện khi đã áp sát trong khoảng 10 studs
+task.spawn(function()
+    local skills = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
+    local skillIndex = 1
+    while true do
+        if attackActive and selectedAttackTarget then
+            local p = Players:FindFirstChild(selectedAttackTarget)
+            local char = LocalPlayer.Character
+            
+            -- Kiểm tra nếu mục tiêu còn tồn tại và khoảng cách <= 10 studs thì MỚI tung chiêu/đấm
+            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
+                local targetHRP = p.Character.HumanoidRootPart
+                local hrp = char.HumanoidRootPart
+                local dist = (hrp.Position - targetHRP.Position).Magnitude
+                
+                if dist <= 10 and (p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0) then
+                    pcall(function()
+                        -- 1. PC: ĐÁNH THƯỜNG (Click chuột trái M1)
+                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                        task.wait(0.03)
+                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+
+                        -- 2. PC: TUNG CHIÊU SKILL 1-4
+                        local key = skills[skillIndex]
+                        VirtualInputManager:SendKeyEvent(true, key, false, game)
+                        task.wait(0.05)
+                        VirtualInputManager:SendKeyEvent(false, key, false, game)
+                        
+                        -- 3. Điện thoại: Kích hoạt nút PunchButton
+                        triggerMobilePunchButton()
+                        
+                        -- 4. Điện thoại: Nhấn vùng chiêu Backpack
+                        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                        if playerGui then
+                            local hotbar = playerGui:FindFirstChild("Hotbar")
+                            if hotbar and hotbar:FindFirstChild("Backpack") then
+                                local backpackUI = hotbar.Backpack
+                                if backpackUI.AbsolutePosition.X > 0 then
+                                    local sectionWidth = backpackUI.AbsoluteSize.X / 4
+                                    local targetX = backpackUI.AbsolutePosition.X + (sectionWidth * (skillIndex - 1)) + (sectionWidth / 2)
+                                    local targetY = backpackUI.AbsolutePosition.Y + (backpackUI.AbsoluteSize.Y / 2)
+                                    
+                                    VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                                    task.wait(0.05)
+                                    VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                                end
+                            end
+                        end
+                    end)
+                    skillIndex = skillIndex % #skills + 1
+                    task.wait(0.5) -- Tốc độ đánh mượt mà
+                else
+                    task.wait(0.1) -- Nếu chưa vào tầm 10 studs thì đứng đợi cho dịch chuyển áp sát
+                end
+            else
+                task.wait(0.3)
+            end
+        else
+            task.wait(0.5)
+        end
+    end
+end)
+
+---------------------------------------------------------
+-- 3. EXTREME ANTI-LAG (BAN NGÀY), ANTI-AFK ENGINE & SAFETY FLOOR (2000x2000 - SIÊU DÀY - KHÔNG ĐỘ TRỄ)
+---------------------------------------------------------
+local ExtremeBtn = Instance.new("TextButton")
+ExtremeBtn.Size = UDim2.new(1, 0, 0, 35)
+ExtremeBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 120)
+ExtremeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ExtremeBtn.Text = "Bật Extreme Anti-Lag (Sàn 2000x2000 Siêu Dày) + Anti-AFK"
+ExtremeBtn.TextSize = 13
+ExtremeBtn.Font = Enum.Font.SourceSansBold
+ExtremeBtn.Parent = ContentContainer
+
+local extremeActivated = false
+
+ExtremeBtn.MouseButton1Click:Connect(function()
+    if extremeActivated then return end
+    extremeActivated = true
+    ExtremeBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+    ExtremeBtn.Text = "Đã Bật Anti-Lag Triệt Để & Sàn 2000x2000"
+
+    -- =======================================================
+    -- 1. AUTOMATIC ANTI-AFK ENGINE
+    -- =======================================================
+    task.spawn(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        
+        LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new(0, 0))
+        end)
+        
+        while task.wait(300) do
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                task.wait(0.1)
+                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            end)
+        end
+    end)
+
+    -- =========================================================
+    -- 2. CREATE SAFETY FLOOR (2000x2000, DÀY 50, THEO SÁT KHÔNG ĐỘ TRỄ)
+    -- =========================================================
+    local floorName = "TSB_SafetyFloor_Y100"
+    local oldFloor = workspace:FindFirstChild(floorName)
+    if oldFloor then oldFloor:Destroy() end
+
+    local safetyFloor = Instance.new("Part")
+    safetyFloor.Name = floorName
+    safetyFloor.Size = Vector3.new(2000, 50, 2000) -- Mở rộng 2000x2000, độ dày 50
+    safetyFloor.Anchored = true
+    safetyFloor.CanCollide = true
+    safetyFloor.Transparency = 0.5 
+    safetyFloor.Material = Enum.Material.SmoothPlastic
+    safetyFloor.Color = Color3.fromRGB(0, 255, 150)
+    safetyFloor.Parent = workspace
+
+    -- RenderStepped giúp sàn khóa chặt tọa độ Y=100 ngay lập tức theo người chơi mà không bị lag/trễ
+    RunService.RenderStepped:Connect(function()
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local hrpPos = char.HumanoidRootPart.Position
+            safetyFloor.CFrame = CFrame.new(hrpPos.X, 100 - 25, hrpPos.Z)
+        end
+    end)
+
+    -- =========================================================
+    -- 3. EXTREME ANTI-LAG (XÓA & KHÔNG CHO CHẠM MỌI PART MAP)
+    -- =========================================================
+    local SoundService = game:GetService("SoundService")
+    local StarterGui = game:GetService("StarterGui")
+
+    local function isPlayerCharacter(obj)
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and obj:IsDescendantOf(player.Character) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function cleanObject(obj)
+        if obj == safetyFloor then return end
+
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") 
+           or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Explosion") 
+           or obj:IsA("Sparkles") or obj:IsA("Highlight") or obj:IsA("Decal") 
+           or obj:IsA("Texture") or obj:IsA("Clouds") or obj:IsA("Sky") 
+           or obj:IsA("PostEffect") or obj:IsA("Atmosphere") or obj:IsA("Sound") then
+            
+            if not isPlayerCharacter(obj) then
+                obj:Destroy()
+            end
+            
+        elseif (obj:IsA("BasePart") or obj:IsA("MeshPart")) then
+            if not isPlayerCharacter(obj) then
+                obj.Transparency = 1
+                obj.CanCollide = false
+                obj.CastShadow = false
+                obj.Size = Vector3.new(0, 0, 0)
+            end
+        end
+    end
+
+    local function nukeEverything()
+        pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false) end)
+        
+        -- ÁNH SÁNG BAN NGÀY
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.Ambient = Color3.fromRGB(150, 150, 150)
+        Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+        Lighting.GlobalShadows = false
+        
+        for _, sound in ipairs(SoundService:GetDescendants()) do 
+            if sound:IsA("Sound") and not isPlayerCharacter(sound) then 
+                sound:Destroy() 
+            end 
+        end
+
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            cleanObject(obj)
+        end
+    end
+
+    nukeEverything()
+
+    workspace.DescendantAdded:Connect(function(obj)
+        task.delay(0.01, function()
+            cleanObject(obj)
+        end)
+    end)
 end)
